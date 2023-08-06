@@ -1,10 +1,17 @@
 vanilla_model.PLAYER:setVisible(false)
 
+--------------- Variables
+local pages = {}
 local avatar_animations = {}
 if avatar:getNBT().animations then
     for i, data in ipairs(avatar:getNBT().animations) do
     avatar_animations[i] = animations[data.mdl][data.name]
     end
+end
+
+local soundboard = {}
+for i, sound in pairs(sounds:getCustomSounds()) do
+    soundboard[i] = sound
 end
 
 --------------- Pings
@@ -38,12 +45,27 @@ function pings.toggleAnimation(animation_index, toggle)
     animation:setPlaying(toggle)
 end
 
+function pings.playSound(id, state)
+    if state then
+        soundboard[id]:play()
+        events.RENDER:register(function (delta)
+            soundboard[id]:pos(player:getPos(delta))
+            if not soundboard[id]:isPlaying() then
+                events.RENDER:remove("sound_"..id)
+                if host:isHost() then
+                    pages.soundboard:getAction(id):setToggled(false)
+                end
+            end
+        end, "sound_"..id)
+    else
+        soundboard[id]:stop()
+        events.RENDER:remove("sound_"..id)
+    end
+end
 
-
-
-if not host:isHost() then return end
+if not host:isHost() then return end --------------- Host-only past this point
 --------------- Pages
-local pages = {
+pages = {
     main = action_wheel:newPage(),
 }
 action_wheel:setPage(pages.main)
@@ -146,13 +168,15 @@ if next(avatar_animations) then
 end
 
 --------------- Soundboard
-local soundboard = {}
-for i, sound in pairs(sounds:getCustomSounds()) do
-    soundboard[i] = sound
-end
-
 if next(soundboard) then
     pages.soundboard = action_wheel:newPage()
     pages.soundboard:newAction():title("Soundboard"):item("note_block"):onLeftClick(function() action_wheel:setPage(pages.soundboard) end)
-
+    for i, sound in pairs(soundboard) do
+        local action = pages.soundboard:newAction(i)
+        action:title(sound:getName())
+        action:item("note_block")
+        action:onToggle(function(state)
+            pings.playSound(i, state)
+        end)
+    end
 end
