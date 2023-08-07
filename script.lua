@@ -2,6 +2,7 @@ vanilla_model.PLAYER:setVisible(false)
 
 --------------- Variables
 local pages = {}
+
 local avatar_animations = {}
 if avatar:getNBT().animations then
     for i, data in ipairs(avatar:getNBT().animations) do
@@ -11,29 +12,40 @@ end
 
 local soundboard = {}
 for i, sound in pairs(sounds:getCustomSounds()) do
-    soundboard[i] = sound
+    soundboard[i] = sounds[sound]
 end
 
 --------------- Pings
-function pings.toggleParts(name, parts, val)
-    local function parsePath(path) -- we can't send ModelParts over pings, so we reconstruct them from a string path.
-        local part = models
-        for name in path:gmatch("([^%.]+)") do
-            part = part[name]
-        end
-        return part
+local function parsePath(path) -- we can't send ModelParts over pings, so we reconstruct them from a string path.
+    local part = models
+    for name in path:gmatch("([^%.]+)") do
+        part = part[name]
     end
+    return part
+end
 
+function pings.toggleParts(name, parts, value)
     for _, path in pairs(parts) do
         local part = parsePath(path)
-        part:setVisible(val)
+        part:setVisible(value)
         for _ = 1, 5 do
             particles["spit"]:pos(part:partToWorldMatrix():apply()):scale(0.5):gravity(0):lifetime(math.random(10,20)):spawn()
         end
     end
     if not player:isLoaded() then return end
-    sounds["item.armor.equip_generic"]:pos(player:getPos()):volume(0.7):pitch(0.8):subtitle(name .. (val and " equipped" or " unequipped")):play()
+    sounds["item.armor.equip_generic"]:pos(player:getPos()):volume(0.7):pitch(0.8):subtitle(name .. (value and " equipped" or " unequipped")):play()
 end
+
+-- local function syncParts(paths) -- some weird stuff is going on with pings not running in the right order. This fixes that for now.
+--     for path, value in pairs(paths) do
+--         local part = parsePath(path)
+--         part:setVisible(value)
+--     end
+-- end
+-- function pings.syncParts(paths)
+--     if host:isHost() then return end
+--     syncParts(paths)
+-- end
 
 function pings.playAnimation(animation_index)
     local animation = avatar_animations[animation_index]
@@ -75,6 +87,7 @@ end
 
 --------------- Auto Accessories
 local accessories = {}
+
 local function addPart(part)
     local function chooseItem(accessory_id)
         local valid_item, item_id = pcall(world.newItem, string.lower(accessory_id)) -- checks if the group name itself is a valid item.
@@ -112,7 +125,15 @@ local function traverseModels(part) -- recursively iterates through all model pa
 end
 traverseModels(models) -- populates the `accessories` table with parts starting with `A_`.
 
-local function registerAccessories()
+if next(accessories) then
+    -- local active_accessories = config:load("accessories") or {}
+    -- if next(active_accessories) then
+    --     syncParts(active_accessories)
+    --     pings.syncParts(active_accessories)
+    -- end
+
+    pages.accessories = action_wheel:newPage()
+    pages.main:newAction():title("Accessories"):item("leather_chestplate"):onLeftClick(function() action_wheel:setPage(pages.accessories) end)
     for _, accessory in pairs(accessories) do
         local function getOverallVisibility(parts) -- returns 0–1 based on how many parts are visible.
             local percent_visible = 0
@@ -126,18 +147,24 @@ local function registerAccessories()
         local action = pages.accessories:newAction()
         action:item(accessory.item)
         action:title("Toggle " .. accessory.title)
-        action:setToggled(getOverallVisibility(accessory.parts) > 0.5) -- if most of the parts are visible, start toggled on.
+        accessory.default_visibility = getOverallVisibility(accessory.parts) > 0.5
+        action:setToggled(accessory.default_visibility) -- if most of the parts are visible, start toggled on.
         action:onToggle(function(val)
             pings.toggleParts(accessory.title, accessory.paths, val)
+            -- if val == accessory.default_visibility then
+                -- for _, path in pairs(accessory.paths) do
+                --     active_accessories[path] = nil
+                -- end
+            -- else
+                -- for _, path in pairs(accessory.paths) do
+                --     active_accessories[path] = val
+                -- end
+            -- end
+            -- config:save("accessories", active_accessories)
         end)
     end
 end
 
-if next(accessories) then
-    pages.accessories = action_wheel:newPage()
-    pages.main:newAction():title("Accessories"):item("leather_chestplate"):onLeftClick(function() action_wheel:setPage(pages.accessories) end)
-    registerAccessories()
-end
 --------------- Auto Animations
 if next(avatar_animations) then
     pages.animations = action_wheel:newPage()
@@ -145,7 +172,6 @@ if next(avatar_animations) then
     for animation_index, animation in ipairs(avatar_animations) do
         local animation_name = animation["name"]
         local action_type, action_item, action_name = animation_name:match('([^/]+)/([^/]+)/([^/]+)') -- split the name into type, item, and name, separated by slashes.
-
         if action_type == "action" then
             local action = pages.animations:newAction()
             action:title(action_name)
@@ -170,10 +196,10 @@ end
 --------------- Soundboard
 if next(soundboard) then
     pages.soundboard = action_wheel:newPage()
-    pages.soundboard:newAction():title("Soundboard"):item("note_block"):onLeftClick(function() action_wheel:setPage(pages.soundboard) end)
+    pages.main:newAction():title("Soundboard"):item("note_block"):onLeftClick(function() action_wheel:setPage(pages.soundboard) end)
     for i, sound in pairs(soundboard) do
         local action = pages.soundboard:newAction(i)
-        action:title(sound:getName())
+        action:title(i)
         action:item("note_block")
         action:onToggle(function(state)
             pings.playSound(i, state)
