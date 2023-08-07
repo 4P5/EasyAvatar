@@ -50,37 +50,6 @@ BBPlugin.register('easy_avatar', {
 		deletables.push(button)
 		Cube.prototype.menu.addAction(button);
 		Group.prototype.menu.addAction(button);
-
-		button = new Action('avatar_properties', {
-			name: 'Avatar Properties',
-			description: 'Figura-specific settings and config',
-			icon: 'developer_mode',
-			click() {
-				const form = {
-					hide_vanilla_player: { label: 'Hide Vanilla Player', type: 'checkbox', value: true },
-					hide_vanilla_armor: { label: 'Hide Vanilla Armor', type: 'checkbox', value: false },
-					author: { label: 'Author', type: 'string' },
-					color: { label: 'Color', type: 'color' },
-
-				}
-				new Dialog({
-					title: 'Avatar Properties',
-					id: 'avatar_properties',
-					form,
-					data: {
-						hide_vanilla: this.hide_vanilla,
-						authors: this.authors,
-					},
-					onConfirm: (data) => {
-						this.hide_vanilla = data.hide_vanilla
-						this.authors = data.authors
-					},
-				}).show()
-			}
-		})
-		Project
-		MenuBar.addAction(button, 'file')
-		deletables.push(button)
 	},
 	onunload(){
 		deletables.forEach((deletable)=>deletable.delete())
